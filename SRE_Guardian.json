@@ -1,0 +1,649 @@
+{
+  "name": "Hackathon",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=# CONTEXT\nTu es un système expert de supervision SRE (Site Reliability Engineering). Tu analyses la santé d'un serveur via son code statut et son URL de réponse.\n\n# OBJECTIVE\nDétecter les pannes (Code 500) MAIS AUSSI les signes avant-coureurs de panne comme la latence élevée (Surchauffe).\n\n# RESPONSE LOGIC (Suis cet arbre de décision STRICTEMENT)\n\nCAS 1 : PANNES AVÉRÉES\nSI \"statusCode\" est différent de 200 (ex: 500, 404) :\n-> Commence par : [ALERTE]\n-> Analyse : \"Panne critique détectée.\"\n\nCAS 2 : PRÉDICTION (Latence Élevée)\nSI \"statusCode\" est 200 MAIS que l'URL contient le mot \"delay\" :\n-> Commence par : [ALERTE]\n-> Analyse : \"PRÉDICTION : Le serveur répond (200) mais avec une latence anormale (Surchauffe détectée). Risque de crash imminent.\"\n\nCAS 3 : ROUTINE (Tout va bien)\nSI \"statusCode\" est 200 ET que l'URL est standard (pas de \"delay\") :\n-> Réponds UNIQUEMENT : [RAS]\nVoici les données du monitoring :\nCode Statut : {{ $json.statusCode }}\nURL appelée : {{ $json.body.url }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -304,
+        -624
+      ],
+      "id": "f836fd3f-6aa1-4602-87bf-c8d94e3674a4",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -560,
+        -512
+      ],
+      "id": "0a7a393c-06c2-4582-99f7-2c0a4ac46191",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "YR4JPJ9ltYi3mbHK",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=# CONTEXT (C)\nTu es un Ingénieur Senior en Fiabilité de Site (SRE) et expert en Automatisation Réseau.\nTu reçois un diagnostic structuré (JSON) provenant d'un agent de surveillance qui a détecté une anomalie ou une menace sur le réseau.\n\n# OBJECTIVE (O)\nTa mission est de déterminer la meilleure stratégie de correction (Remediation Plan) basée sur le diagnostic reçu.\n- Si c'est une panne matérielle (Hardware) : Propose le remplacement de la pièce et l'envoi d'un technicien.\n- Si c'est une panne logicielle (Software) : Propose un redémarrage, un patch ou une commande CLI spécifique.\n- Si c'est une Cyberattaque (Security) : Propose l'isolation immédiate de l'IP ou le verrouillage du port concerné.\n- Si c'est une Fausse Alerte (Safe) : Confirme qu'aucune action n'est requise.\n\n# STYLE (S)\nProcédural, tactique et orienté \"Solution\". Tes réponses doivent ressembler à un \"Playbook\" d'incident.\n\n# TONE (T)\nDécisif, autoritaire et expert.\n\n# AUDIENCE (A)\nTon rapport sera transmis à un \"Agent de Communication\" qui se chargera de la mise en forme finale pour l'humain. Fournis-lui de la matière brute et précise.\n\n# RESPONSE (R)\nRéponds UNIQUEMENT au format JSON strict.\nStructure attendue :\n{\n  \"action_type\": \"DISPATCH_TECH\" | \"REMOTE_COMMAND\" | \"SECURITY_BLOCK\" | \"NO_ACTION\",\n  \"urgency_level\": \"LOW\" | \"MEDIUM\" | \"HIGH\" | \"CRITICAL\",\n  \"recommended_action\": \"Description précise de l'action à valider (ex: Remplacer module ventilateur sur Slot 2)\",\n  \"rollback_plan\": \"Que faire si l'action échoue ?\",\n  \"estimated_downtime\": \"Durée estimée de l'intervention\"\n}\n\n---\nDIAGNOSTIC REÇU DE L'AGENT 1 :\n{{ $json.output }}",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        368,
+        -672
+      ],
+      "id": "fd1a25ef-1b5c-45b5-b974-cebc16e2ad19",
+      "name": "AI Agent1"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        368,
+        -384
+      ],
+      "id": "07286bd5-61d7-4467-b39f-5acaff36cc19",
+      "name": "Groq Chat Model1",
+      "credentials": {
+        "groqApi": {
+          "id": "YR4JPJ9ltYi3mbHK",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "=C'est lui qui lira notre dataset sur les pannes prédictives",
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "=network_grok_v1",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.3,
+      "position": [
+        -240,
+        -368
+      ],
+      "id": "84686b13-d6b9-40f3-a930-53f4c518ed43",
+      "name": "Qdrant Vector Store1",
+      "credentials": {
+        "qdrantApi": {
+          "id": "6RKDYc0tcavLb1Cs",
+          "name": "QdrantApi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "=sentence-transformers/all-MiniLM-L6-v2",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsHuggingFaceInference",
+      "typeVersion": 1,
+      "position": [
+        -352,
+        -272
+      ],
+      "id": "b421b10f-ffa6-4cb2-b386-da73a78ae0ac",
+      "name": "Embeddings HuggingFace Inference1",
+      "credentials": {
+        "huggingFaceApi": {
+          "id": "gl8uC1OFsipNSmfE",
+          "name": "HuggingFaceApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=# CONTEXT (C)\nTu es le Responsable \"Service Assurance & Expérience Client\" d'un opérateur Télécom. Ton système de maintenance proactive (OSS) vient de détecter et d'analyser une anomalie réseau de manière autonome (24/7).\n\n# OBJECTIVE (O)\nTa mission est de notifier les parties prenantes sur Discord.\nTu dois transformer le rapport technique en une démonstration de valeur ajoutée :\n1. Montre que l'action est **Proactive** (on agit avant la panne client).\n2. Estime l'impact sur le **NPS** (Satisfaction Client) si on n'avait rien fait.\n3. Mets en avant les KPIs : **TTR** (Time to Repair) optimisé et **Cost Saving** (Maintenance préventive vs Urgence).\n4. Confirme la création automatique d'un ticket dans l'outil **ITSM**.\n\n# STYLE (S)\nStratégique, efficace, \"Business-First\". Utilise des icônes pour la lisibilité.\n\n# TONE (T)\nConfiant, rassurant et professionnel.\n\n# AUDIENCE (A)\nLes superviseurs NOC et les Directeurs de Compte (qui se soucient des clients et des coûts).\n\n# RESPONSE (R)\nGénère un rapport Discord formaté en Markdown. Ne réponds PAS en JSON.\nStructure obligatoire :\n\n**🛡️ MAINTENANCE PROACTIVE (24/7)**\n> **Incident :** [Type de panne détectée] sur [Équipement]\n> **Statut :** 🤖 Traitement Autonome Initié\n\n📊 **IMPACT CLIENT & NPS**\n* **Impact évité :** [Décris brièvement la gêne client évitée : ex: Latence, coupure service]\n* **Clients à risque :** Secteur Entreprise / VIP\n* **Objectif NPS :** ✅ Préservé grâce à l'anticipation.\n\n💰 **KPIs & EFFICIENCE**\n* **Time to Repair (TTR) :** Immédiat (vs 4h en manuel).\n* **Cost Saving :** Intervention planifiée (vs Remplacement urgence coûteux).\n\n🔗 **SUIVI ITSM**\n* Ticket OSS créé automatiquement.\n* Action requise : [Action recommandée par l'Agent 2]\n\n---\nDONNÉES TECHNIQUES :\n{{ $json.output }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        736,
+        -672
+      ],
+      "id": "2644129d-e40c-474b-b33d-60245c721dbb",
+      "name": "AI Agent2"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        736,
+        -432
+      ],
+      "id": "2117f66a-8ce2-43a4-8e6f-ca9def3351da",
+      "name": "Groq Chat Model2",
+      "credentials": {
+        "groqApi": {
+          "id": "KavjCWuuAb3eWJAD",
+          "name": "Groq account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "content": "={{ $json.output.toString().slice(0, 1700) }}\n\n---\n**🚦 POSTE DE COMMANDEMENT**\nUne action nécessite votre validation.\nVeuillez valider ou rejeter l'intervention :\n\n👉 [✅ AUTORISER L'ACTION]({{ $execution.resumeUrl }}?action=approve&user=admin)\n👉 [⛔ REJETER FERMEMENT]({{ $execution.resumeUrl }}?action=reject)",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        -560
+      ],
+      "id": "e78512cf-84d8-4def-ba24-eb7fe000fff7",
+      "name": "Discord",
+      "webhookId": "0ea87b44-3078-43b5-8e5e-8fb7451d4f94",
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "YpFWGFK0XJwUBwGx",
+          "name": "Discord Webhook account 5"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "02096ce8-8467-43d0-8c46-26a71e14faf2",
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -544,
+        -336
+      ],
+      "id": "0d66432a-310a-4f42-a0e7-958a32da65f3",
+      "name": "Webhook",
+      "webhookId": "02096ce8-8467-43d0-8c46-26a71e14faf2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.groq.com/openai/v1/audio/transcriptions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "=model",
+              "value": "=whisper-large-v3"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "=data0"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -1232,
+        -144
+      ],
+      "id": "8198dad5-2810-47fb-90f8-98feec96fdd9",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1Zn18T32Agicx0BT",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"raw\": \"{{ $json.text }}\",\n  \"source\": \"VOCAL\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1200,
+        64
+      ],
+      "id": "7eb2e0fa-eab1-4b32-a3e7-461aeaf9145c",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1024,
+        -240
+      ],
+      "id": "bc67ecfd-42de-41df-be7a-8692aace1039",
+      "name": "Wait",
+      "webhookId": "b778b4b9-cee5-4541-b80c-66bb391a4233"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "7183c64b-15dd-4597-be90-e3d27088d358",
+              "leftValue": "={{ $json.query.action }}",
+              "rightValue": "=approve",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        608,
+        48
+      ],
+      "id": "28539d28-1534-4e5a-bc47-a0df514b37e1",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "content": "=✅ **ACTION VALIDÉE**\nL'administrateur a autorisé l'intervention.\nLe déploiement des correctifs démarre immédiatement.",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        912,
+        -32
+      ],
+      "id": "d6cda7cf-8dca-4f5b-a1fa-7ff970569a4a",
+      "name": "Discord1",
+      "webhookId": "16af8d5a-770e-4d6b-a77b-d8816d044f17",
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "YpFWGFK0XJwUBwGx",
+          "name": "Discord Webhook account 5"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "content": "=⛔ **ACTION BLOQUÉE**\nRaison : Alerte de Sécurité (Injection de Logs) ou Rejet manuel par l'opérateur.\nAucune commande n'a été envoyée aux machines.",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        912,
+        144
+      ],
+      "id": "d61c2210-dc77-4035-b3fe-26f3bca727ef",
+      "name": "Discord2",
+      "webhookId": "cd41d6a2-d5b8-4a6c-b7c8-55559fdfa1fb",
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "YpFWGFK0XJwUBwGx",
+          "name": "Discord Webhook account 5"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -784,
+        -704
+      ],
+      "id": "3cbab51f-1456-413a-bdc0-c4c4751af8a7",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "=https://httpbin.org/status/200",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -512,
+        -704
+      ],
+      "id": "c9ffc5e6-80e2-40cf-892a-f7833e88731d",
+      "name": "HTTP Request1",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "7bb3e1e2-0de8-4b6b-8673-e8f72ee7eb87",
+              "leftValue": "={{ $json.output }}",
+              "rightValue": "=[RAS]",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        48,
+        -560
+      ],
+      "id": "4ca14ac8-e96b-4292-8415-26526d6d7b71",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "content": "=✅ Check Routine : Système Sain. ({{ $now.format('HH:mm') }})",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        64,
+        -704
+      ],
+      "id": "948e159d-06a1-4652-a39b-b613c0c9de83",
+      "name": "Discord3",
+      "webhookId": "9a033472-61ce-4d18-9946-60c764dd55a2",
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "LAHicG21VWzGJFQ5",
+          "name": "Discord Webhook account 7"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Vector Store1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings HuggingFace Inference1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store1",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent2",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent2": {
+      "main": [
+        [
+          {
+            "node": "Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        []
+      ]
+    },
+    "Discord": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Discord1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Discord2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Discord3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "d0c8406f-c29f-4548-8fea-0e08cef809d9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "069f214578a9ea01af8892b0780fb5dcad077583a6d36ba8583e4ae3761a091b"
+  },
+  "id": "PF4NZd3FruDpsYJO",
+  "tags": []
+}
